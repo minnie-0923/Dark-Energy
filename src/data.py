@@ -1,38 +1,38 @@
-# 这段代码是对数据进行预处理
+# Data preprocessing for the supernova cosmology analysis.
 
 
 # ===========================================
-# 哈勃常数测量：宇宙学数据分析
-# 使用Tonry 2003数据拟合哈勃定律 v = H₀ * d
+# Hubble constant measurement: cosmological data analysis
+# Fit Hubble's law, v = H0 * d, with the Tonry 2003 dataset.
 # ===========================================
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-# 导入天文数据处理库
-import astropy.io.ascii  # 用于读取天文数据表格
-import astropy.units as u  # 物理单位处理
-import astropy.constants as ac  # 物理常数
+# Astronomy data-processing tools
+import astropy.io.ascii  # reads astronomy tables
+import astropy.units as u  # physical units
+import astropy.constants as ac  # physical constants
 
-# 在Google Colab中上传数据文件
+# Upload the data file in Google Colab.
 from google.colab import files
 uploaded = files.upload()
 # ===========================================
-# 1. 数据加载和预处理
+# 1. Data loading and preprocessing
 # ===========================================
 
-# 读取VOTable格式的天文数据（包含星系距离和速度信息）
+# Read the VOTable-style astronomy dataset.
 dat = astropy.io.ascii.read("Tonry_2003.vot")
 
 # print(dat)
 
-# 计算距离数据：
-# col8是距离模数的对数形式，72.0是H₀的初始假设值（km/s/Mpc）
-# 10**dat["col8"]将距离模数转换为线性尺度
+# Compute distance data.
+# col8 is a logarithmic distance quantity; 72.0 is the initial H0
+# assumption in km/s/Mpc. 10**dat["col8"] converts it to a linear scale.
 distance = 10**dat["col8"] / 72.0 * u.mpc
 
-# 计算距离误差（从col9中提取）
+# Compute distance uncertainty from col9.
 distance_error = (10**(dat["col8"] + dat["col9"]) - 10**dat["col8"]) / 72.0 * u.mpc
 
-# 计算速度数据：col7是速度的对数形式
+# Compute velocity data; col7 is stored in logarithmic form.
 velocity = 10**dat["col7"] * u.km / u.s

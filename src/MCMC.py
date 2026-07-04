@@ -1,88 +1,88 @@
-# 这个方法用到的核心思想是贝叶斯定理：后验=先验✖️似然
-# 使用的随机游走的起点是用最大似然估计得出来的结果
-# 最后的结果进行了收敛性验证，同时对数据也进行了老化处理和稀疏处理
-# 老化处理：把最开始的一部分游走删去；稀疏处理：每15步取一个样本
-# 在最后结果中对于三个参数：m,b,log(f)进行相关性分析，得到最后的corner图，在图中发现m,b有相关性，和物理推测相符
-# m和log(f),b和log(f)都是没有相关性的
+# The core idea is Bayes' theorem: posterior = prior * likelihood.
+# The walkers start near the maximum-likelihood estimate.
+# The final chain is checked for convergence, then burn-in removal and
+# thinning are applied. The corner plot analyzes correlations among
+# m, b, and log(f); the slope and intercept are correlated, while log(f)
+# is largely independent of the other two parameters.
 # ===========================================
-# 9. 定义先验分布（贝叶斯分析）
+# 9. Define the prior distribution for Bayesian analysis
 # ===========================================
 
 def log_prior(theta):
     """
-    对数先验函数
+    Log-prior function.
 
-    参数：
+    Parameters:
     theta = [m, b, log_f]
 
-    返回：
-    先验概率的对数（无信息先验）
+    Returns:
+    log prior probability under a weakly informative uniform prior
     """
     m, b, log_f = theta
 
-    # 设定参数的合理范围：
-    # m: 0.0到0.5 (对应H₀从2到无穷大)
-    # b: -100到100 Mpc
-    # log_f: -10到1 (对应f从4.5e-5到2.7)
+    # Physically reasonable parameter ranges:
+    # m: 0.0 to 0.5, corresponding to H0 from 2 to infinity
+    # b: -100 to 100 Mpc
+    # log_f: -10 to 1, corresponding to f from 4.5e-5 to 2.7
 
     if 0.0 < m < 0.5 and -100.0 < b < 100.0 and -10.0 < log_f < 1.0:
-        return 0.0  # 在范围内返回常数（均匀先验）
-    return -np.inf  # 在范围外返回负无穷（概率为0）
+        return 0.0  # constant value inside the prior range
+    return -np.inf  # zero probability outside the range
 
 def log_probability(theta, x, y, yerr):
     """
-    对数后验概率（贝叶斯定理）
+    Log posterior probability from Bayes' theorem.
 
-    后验 ∝ 先验 × 似然
-    在对数空间中：log(后验) = log(先验) + log(似然)
+    posterior is proportional to prior times likelihood.
+    In log space: log posterior = log prior + log likelihood.
     """
     lp = log_prior(theta)
     if not np.isfinite(lp):
         return -np.inf
     return lp + log_likelihood(theta, x, y, yerr)
 # ===========================================
-# 10. 安装并使用emcee进行MCMC采样
+# 10. Install and use emcee for MCMC sampling
 # ===========================================
 
-# 安装emcee库（在Colab中）
+# Install emcee in Colab.
 !pip install -U emcee
 
 import emcee
 
-# 设置MCMC的初始位置（以最大似然解为中心）
-pos = soln.x + 1e-4 * np.random.randn(32, 3)  # 32个行走者，每个有3个参数
+# Set MCMC initial positions around the maximum-likelihood solution.
+pos = soln.x + 1e-4 * np.random.randn(32, 3)  # 32 walkers, 3 parameters each
 nwalkers, ndim = pos.shape
 
 print("=" * 50)
-print("开始MCMC采样...")
-print("行走者数量:", nwalkers)
-print("参数维度:", ndim)
+print("Starting MCMC sampling...")
+print("Number of walkers:", nwalkers)
+print("Parameter dimensions:", ndim)
 print("=" * 50)
 
-# 创建EnsembleSampler对象
+# Create the EnsembleSampler object.
 sampler = emcee.EnsembleSampler(
     nwalkers, ndim, log_probability, args=(x_new, y_new, yerr_new)
 )
 
-# 运行MCMC采样（5000步）
+# Run MCMC sampling for 5,000 steps.
 sampler.run_mcmc(pos, 5000, progress=True)
 
-print("\nMCMC采样完成！")
-print("总步数:", 5000)
-print("总样本数:", nwalkers * 5000)
+print("\nMCMC sampling completed.")
+print("Total steps:", 5000)
+print("Total samples:", nwalkers * 5000)
 
 # ===========================================
-# 11. 检查MCMC链的收敛性
+# 11. Check MCMC convergence
 # ===========================================
 
-# 绘制参数链的轨迹图
+# Plot parameter-chain traces.
 fig, axes = plt.subplots(3, figsize=(12, 8), sharex=True)
-samples = sampler.get_chain()  # 获取所有链
+samples = sampler.get_chain()  # all chains
 labels = ["m (1/H₀)", "b [Mpc]", "log(f)"]
 
 for i in range(ndim):
     ax = axes[i]
-    # 绘制每个行走者的链
+    # Plot each walker chain.
     for j in range(nwalkers):
         ax.plot(samples[:, j, i], alpha=0.3, linewidth=0.5)
     ax.set_xlim(0, len(samples))
@@ -95,26 +95,26 @@ plt.suptitle("MCMC parameter chain trajectory diagram", fontsize=14)
 plt.tight_layout()
 plt.show()
 
-# 计算自相关时间（评估链的收敛性）
+# Compute autocorrelation time as a convergence diagnostic.
 tau = sampler.get_autocorr_time()
 print("=" * 50)
-print("自相关时间（收敛性指标）：")
+print("Autocorrelation time, a convergence diagnostic:")
 print("=" * 50)
 for i, label in enumerate(labels):
-    print(f"{label}: {tau[i]:.1f} 步")
-print("\n注：自相关时间越小，采样效率越高")
+    print(f"{label}: {tau[i]:.1f} steps")
+print("\nNote: shorter autocorrelation time indicates more efficient sampling.")
 # ===========================================
-# 12. 处理MCMC样本（去除老化期，稀释样本）
+# 12. Process MCMC samples with burn-in removal and thinning
 # ===========================================
-# 去除前100步作为老化期（burn-in），每15步取一个样本（稀释）
+# Remove the first 100 steps as burn-in, then keep every 15th sample.
 flat_samples = sampler.get_chain(discard=100, thin=15, flat=True)
-print(f"\n处理后样本形状: {flat_samples.shape}")
-print(f"有效样本数: {flat_samples.shape[0]}")
+print(f"\nProcessed sample shape: {flat_samples.shape}")
+print(f"Effective sample count: {flat_samples.shape[0]}")
 # ===========================================
-# 13. 绘制后验分布的相关图（corner plot）
+# 13. Plot posterior correlations with a corner plot
 # ===========================================
 
-# 安装corner库
+# Install corner.
 !pip install corner
 
 import corner
@@ -124,14 +124,14 @@ fig = corner.corner(
     labels=[r"$m = 1/H_0$ [Mpc·s/km]",
             r"$b$ [Mpc]",
             r"$\log\,f$"],
-    quantiles=[0.16, 0.5, 0.84],  # 显示16%, 50%, 84%分位数
+    quantiles=[0.16, 0.5, 0.84],  # show 16%, 50%, and 84% quantiles
     show_titles=True,
     title_kwargs={"fontsize": 12},
     label_kwargs={"fontsize": 14}
 )
 
-# 在图上标注哈勃常数值
-H0_samples = 1 / flat_samples[:, 0]  # 计算H₀ = 1/m
+# Annotate the Hubble constant value.
+H0_samples = 1 / flat_samples[:, 0]  # H0 = 1/m
 H0_median = np.median(H0_samples)
 H0_lower = H0_median - np.percentile(H0_samples, 16)
 H0_upper = np.percentile(H0_samples, 84) - H0_median
@@ -145,27 +145,27 @@ plt.tight_layout()
 plt.show()
 
 # ===========================================
-# 14. 可视化MCMC拟合的不确定性
+# 14. Visualize MCMC fitting uncertainty
 # ===========================================
 
 plt.figure(figsize=(12, 8))
 
-# 从后验分布中随机抽取100个样本并绘制对应的拟合线
+# Draw 100 posterior samples and plot their corresponding fit lines.
 inds = np.random.randint(len(flat_samples), size=100)
 for ind in inds:
     sample = flat_samples[ind]
     plt.plot(x0, np.dot(np.vander(x0, 2), sample[:2]),
              "C1", alpha=0.05, linewidth=1)
 
-# 绘制数据点
+# Plot observed data.
 plt.errorbar(x_new, y_new, yerr=yerr_new,
              fmt=".k", capsize=0, alpha=0.5, label="Observational data")
 
-# 绘制最小二乘拟合
+# Plot least-squares fit.
 plt.plot(x0, np.dot(np.vander(x0, 2), w), "--k",
          label="Least Squares", linewidth=2)
 
-# 绘制最大似然拟合
+# Plot maximum-likelihood fit.
 plt.plot(x0, np.dot(np.vander(x0, 2), [m_ml, b_ml]), ":k",
          label="Maximum Likelihood", linewidth=2)
 
@@ -178,24 +178,24 @@ plt.tight_layout()
 plt.show()
 
 # ===========================================
-# 15. 输出最终结果
+# 15. Output final result
 # ===========================================
 
 from IPython.display import display, Math
 
 print("=" * 60)
-print("哈勃常数测量最终结果（贝叶斯MCMC分析）")
+print("Final Hubble constant measurement from Bayesian MCMC analysis")
 print("=" * 60)
 print()
 
-# 对每个参数计算中位数和68%置信区间
+# Compute the median and 68% credible interval for each parameter.
 for i in range(ndim):
-    # 计算16%, 50%, 84%分位数
+    # Compute the 16%, 50%, and 84% quantiles.
     mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
-    q = np.diff(mcmc)  # 计算上下误差
+    q = np.diff(mcmc)  # lower and upper uncertainties
 
-    # 创建LaTeX格式的输出
-    if i == 0:  # 对于斜率m，额外计算H₀
+    # Create LaTeX-formatted output.
+    if i == 0:  # for slope m, also compute H0
         H0_median = 1 / mcmc[1]
         H0_upper = 1 / (mcmc[1] - q[0]) - H0_median
         H0_lower = H0_median - 1 / (mcmc[1] + q[1])
@@ -215,5 +215,5 @@ for i in range(ndim):
         print()
 
 print("=" * 60)
-print("分析完成！")
+print("Analysis complete.")
 print("=" * 60)
